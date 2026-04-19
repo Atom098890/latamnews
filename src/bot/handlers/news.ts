@@ -1,5 +1,5 @@
 import type { BotContext, DbArticle } from '../../types';
-import { COUNTRIES, CATEGORIES, countryLabel, categoryLabel } from '../../types';
+import { COUNTRIES, CATEGORIES, categoryLabel } from '../../types';
 import { getUser, getCachedArticle, getRecentArticles } from '../../services/db';
 import { newsNavKeyboard, mainMenu } from '../keyboards';
 
@@ -90,8 +90,10 @@ function formatArticle(article: DbArticle): string {
     ? new Date(article.published_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
     : '';
 
+  const countryName = country?.name ?? article.country_code.toUpperCase();
+
   return [
-    `${flag} ${catIcon} *${escapeMarkdown(categoryLabel(article.category))}* · ${escapeMarkdown(countryLabel(article.country_code))}${date ? `  _${escapeMarkdown(date)}_` : ''}`,
+    `${flag} *${escapeMarkdown(countryName)}*  ${catIcon} ${escapeMarkdown(categoryLabel(article.category))}${date ? `  _${escapeMarkdown(date)}_` : ''}`,
     '',
     `*${escapeMarkdown(article.adapted_title)}*`,
     '',
