@@ -39,7 +39,18 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             mkdir -p ~/latam-news
-            cat > ~/latam-news/.env << 'EOF'
+
+            cat > ~/latam-news/docker-compose.yml << 'COMPOSEOF'
+            services:
+              bot:
+                image: ${IMAGE}:latest
+                restart: unless-stopped
+                env_file: .env
+                environment:
+                  NODE_ENV: production
+            COMPOSEOF
+
+            cat > ~/latam-news/.env << 'ENVEOF'
             BOT_TOKEN=${{ secrets.BOT_TOKEN }}
             GNEWS_API_KEY=${{ secrets.GNEWS_API_KEY }}
             DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}
@@ -47,9 +58,11 @@ jobs:
             SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
             INVITE_CODE=${{ secrets.INVITE_CODE }}
             NODE_ENV=production
-            EOF
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            IMAGE=$(echo 'ghcr.io/${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
-            IMAGE=$IMAGE docker compose pull
-            IMAGE=$IMAGE docker compose up -d --remove-orphans
+            ENVEOF
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            export IMAGE=$(echo 'ghcr.io/${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+            cd ~/latam-news
+            docker compose pull
+            docker compose up -d --remove-orphans
             docker image prune -f
