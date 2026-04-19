@@ -10,6 +10,7 @@ export interface DbUser {
   country_codes: string[];
   categories: string[];
   is_active: boolean;
+  is_allowed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,8 @@ export const CATEGORIES: Record<string, { name: string; icon: string }> = {
 };
 
 export const PRESET_TIMES = [
+  { label: '02:00', hour: 2, minute: 0 },
+  { label: '06:00', hour: 6, minute: 0 },
   { label: '08:00', hour: 8, minute: 0 },
   { label: '10:00', hour: 10, minute: 0 },
   { label: '12:00', hour: 12, minute: 0 },

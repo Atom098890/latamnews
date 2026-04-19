@@ -44,6 +44,7 @@ jobs:
             DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
+            INVITE_CODE=${{ secrets.INVITE_CODE }}
             NODE_ENV=production
             EOF
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin

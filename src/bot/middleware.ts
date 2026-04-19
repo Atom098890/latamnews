@@ -1,6 +1,6 @@
 import type { MiddlewareFn } from 'telegraf';
 import type { BotContext } from '../types';
-import { upsertUser } from '../services/db';
+import { upsertUser, getUser } from '../services/db';
 import { isDev } from '../config';
 
 // ─── Session initializer ─────────────────────────────────────────────────────
@@ -80,6 +80,36 @@ export const logger: MiddlewareFn<BotContext> = (ctx, next) => {
 
   console.log(`[${new Date().toISOString()}] ${update} from ${user}: ${text}`);
   return next();
+};
+
+// TODO: заменить на проверку подписки Telegram Stars
+
+export const checkAccess: MiddlewareFn<BotContext> = async (ctx, next) => {
+  if (!ctx.from) return next();
+
+  // Allow /start through always (handles invite code & blocked message)
+  const isStart = ctx.message && 'text' in ctx.message && ctx.message.text.startsWith('/start');
+  if (isStart) return next();
+
+  const user = await getUser(ctx.from.id).catch(() => null);
+  if (user?.is_allowed) return next();
+
+  return undefined; // silently block
+};
+
+// ─── Ignore non-menu messages ────────────────────────────────────────────────
+
+const ALLOWED_TEXT = new Set(['📰 Новости', '⚙️ Настройки', '📅 Подписка', '❓ Помощь']);
+
+export const filterMessages: MiddlewareFn<BotContext> = (ctx, next) => {
+  if (!ctx.message) return next();
+  if ('text' in ctx.message) {
+    const text = ctx.message.text;
+    if (text.startsWith('/') || ALLOWED_TEXT.has(text)) return next();
+    return undefined;
+  }
+  // ignore voice, video, photo, stickers, etc.
+  return undefined;
 };
 
 // ─── Global error handler ─────────────────────────────────────────────────────

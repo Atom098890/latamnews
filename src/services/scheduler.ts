@@ -1,10 +1,9 @@
 import cron from 'node-cron';
 import type { Telegraf } from 'telegraf';
 import type { BotContext } from '../types';
-import { getActiveSubscriptions, getAllActiveUsers, deleteArticlesOlderThan } from './db';
+import { getActiveSubscriptions, getAllActiveUsers, deleteArticlesOlderThan, getCachedArticle, saveArticle } from './db';
 import { fetchNews } from './news';
 import { adaptArticle } from './ai';
-import { getCachedArticle, saveArticle } from './db';
 import { COUNTRIES, CATEGORIES, countryLabel, categoryLabel } from '../types';
 
 const activeTasks = new Map<number, cron.ScheduledTask>();
@@ -13,14 +12,70 @@ const ARTICLE_TTL_DAYS = 30;
 
 export function startScheduler(bot: Telegraf<BotContext>): void {
   loadAndSchedule(bot);
-  // Reload subscription list every hour in case users added/changed them
+  prefetchAllArticles();
+
   cron.schedule('0 * * * *', () => loadAndSchedule(bot));
-  // Clean up old articles every day at 03:00 UTC
+  cron.schedule('0 */3 * * *', () => prefetchAllArticles());
   cron.schedule('0 3 * * *', () => {
     deleteArticlesOlderThan(ARTICLE_TTL_DAYS)
       .then((count) => console.log(`[scheduler] Cleaned up ${count} articles older than ${ARTICLE_TTL_DAYS} days`))
       .catch((err) => console.error('[scheduler] Article cleanup failed:', err));
   });
+}
+
+async function prefetchAllArticles(): Promise<void> {
+  const users = await getAllActiveUsers().catch((err) => {
+    console.error('[prefetch] Failed to load users:', err);
+    return [];
+  });
+
+  if (users.length === 0) return;
+
+  const pairs = new Set<string>();
+  for (const user of users) {
+    for (const country of user.country_codes) {
+      for (const category of user.categories) {
+        pairs.add(`${country}:${category}`);
+      }
+    }
+  }
+
+  console.log(`[prefetch] Fetching for ${pairs.size} country+category pair(s)`);
+
+  for (const pair of pairs) {
+    const [country, category] = pair.split(':') as [string, string];
+    try {
+      const { articles } = await fetchNews({ countries: [country], categories: [category], limit: 5 });
+
+      for (const raw of articles) {
+        if (await getCachedArticle(raw.id)) continue;
+
+        const adapted = await adaptArticle({
+          worldNewsId: raw.id,
+          title: raw.title,
+          text: raw.text || raw.summary || raw.title,
+          countryCode: country,
+          category,
+        });
+
+        await saveArticle({
+          world_news_id: raw.id,
+          adapted_title: adapted.title,
+          adapted_summary: adapted.summary,
+          adapted_body: adapted.body,
+          country_code: country,
+          category,
+          source_url: raw.url,
+          image_url: raw.image ?? null,
+          published_at: raw['publish-date'] ?? null,
+        });
+      }
+    } catch (err) {
+      console.error(`[prefetch] Failed for ${pair}:`, err);
+    }
+  }
+
+  console.log('[prefetch] Done');
 }
 
 async function loadAndSchedule(bot: Telegraf<BotContext>): Promise<void> {

@@ -1,8 +1,6 @@
 import type { BotContext, DbArticle } from '../../types';
 import { COUNTRIES, CATEGORIES, countryLabel, categoryLabel } from '../../types';
-import { getUser, getCachedArticle, saveArticle } from '../../services/db';
-import { fetchNews } from '../../services/news';
-import { adaptArticle } from '../../services/ai';
+import { getUser, getCachedArticle, getRecentArticles } from '../../services/db';
 import { newsNavKeyboard, mainMenu } from '../keyboards';
 
 const PAGE_SIZE = 5;
@@ -18,61 +16,22 @@ export async function handleNews(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const loadingMsg = await ctx.reply('⏳ Загружаю и перевожу новости...');
+  const loadingMsg = await ctx.reply('⏳ Загружаю новости...');
 
   try {
-    const { articles } = await fetchNews({
-      countries: user.country_codes,
-      categories: user.categories,
-      limit: PAGE_SIZE,
-    });
+    const cached = await getRecentArticles(user.country_codes, user.categories, PAGE_SIZE);
 
     await ctx.telegram.deleteMessage(ctx.chat!.id, loadingMsg.message_id).catch(() => undefined);
 
-    if (articles.length === 0) {
-      await ctx.reply('📭 По вашим фильтрам новостей пока нет. Попробуйте расширить выбор стран или категорий в настройках.', mainMenu);
+    if (cached.length === 0) {
+      await ctx.reply('📭 Новости ещё не загружены. Попробуйте через несколько минут.', mainMenu);
       return;
     }
 
-    const articleIds: number[] = [];
-
-    for (const raw of articles) {
-      try {
-        const countryCode = raw['source-country'] ?? user.country_codes[0] ?? 'mx';
-        const category = raw.category ?? user.categories[0] ?? 'politics';
-
-        let article = await getCachedArticle(raw.id);
-
-        if (!article) {
-          const adapted = await adaptArticle({
-            worldNewsId: raw.id,
-            title: raw.title,
-            text: raw.text || raw.summary || raw.title,
-            countryCode,
-            category,
-          });
-
-          article = await saveArticle({
-            world_news_id: raw.id,
-            adapted_title: adapted.title,
-            adapted_summary: adapted.summary,
-            adapted_body: adapted.body,
-            country_code: countryCode,
-            category,
-            source_url: raw.url,
-            image_url: raw.image ?? null,
-            published_at: raw['publish-date'] ?? null,
-          });
-        }
-
-        articleIds.push(raw.id);
-      } catch (err) {
-        console.error('[news] Failed to process article:', err);
-      }
-    }
+    const articleIds = cached.map(a => a.world_news_id);
 
     if (articleIds.length === 0) {
-      await ctx.reply('❌ Не удалось обработать новости. Попробуйте позже.', mainMenu);
+      await ctx.reply('❌ Не удалось загрузить новости. Попробуйте позже.', mainMenu);
       return;
     }
 

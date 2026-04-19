@@ -1,16 +1,39 @@
 import type { BotContext } from '../../types';
 import { countryLabel, categoryLabel } from '../../types';
-import { getUser, updateUserPreferences } from '../../services/db';
+import { getUser, updateUserPreferences, allowUser } from '../../services/db';
 import { countryKeyboard, categoryKeyboard, mainMenu } from '../keyboards';
+import { config } from '../../config';
+
+// TODO: заменить реферальный доступ на подписку Telegram Stars
 
 export async function handleStart(ctx: BotContext): Promise<void> {
+  const payload = ctx.message && 'text' in ctx.message
+    ? ctx.message.text.split(' ')[1]
+    : undefined;
+
+  // upsert user first so is_allowed field exists
   const user = await getUser(ctx.from!.id);
   const name = ctx.from?.first_name ?? 'друг';
 
+  // Grant access via invite code
+  if (payload === config.INVITE_CODE) {
+    await allowUser(ctx.from!.id);
+    if (user?.is_allowed) {
+      await ctx.reply(`👋 С возвращением, *${name}*!\n\nВыбери действие в меню ниже.`, { parse_mode: 'Markdown', ...mainMenu });
+      return;
+    }
+  }
+
+  // Block if not allowed
+  if (!user?.is_allowed && payload !== config.INVITE_CODE) {
+    await ctx.reply('🔒 Бот в закрытом доступе.\n\nЕсли у вас есть инвайт-ссылка — перейдите по ней.');
+    return;
+  }
+
   if (user && user.country_codes.length > 0 && user.categories.length > 0) {
     await ctx.reply(
-      `👋 С возвращением, *${name}*\\!\n\nВыбери действие в меню ниже.`,
-      { parse_mode: 'MarkdownV2', ...mainMenu }
+      `👋 С возвращением, *${name}*!\n\nВыбери действие в меню ниже.`,
+      { parse_mode: 'Markdown', ...mainMenu }
     );
     return;
   }

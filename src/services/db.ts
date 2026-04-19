@@ -42,6 +42,15 @@ export async function getUser(telegramId: number): Promise<DbUser | null> {
   return data;
 }
 
+export async function allowUser(telegramId: number): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .update({ is_allowed: true, updated_at: new Date().toISOString() })
+    .eq('telegram_id', telegramId);
+
+  if (error) throw new Error(`allowUser: ${error.message}`);
+}
+
 export async function updateUserPreferences(
   telegramId: number,
   preferences: { country_codes?: string[]; categories?: string[] }
@@ -65,6 +74,23 @@ export async function getAllActiveUsers(): Promise<DbUser[]> {
 }
 
 // ─── Article cache ───────────────────────────────────────────────────────────
+
+export async function getRecentArticles(
+  countries: string[],
+  categories: string[],
+  limit: number
+): Promise<DbArticle[]> {
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .in('country_code', countries)
+    .in('category', categories)
+    .order('published_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`getRecentArticles: ${error.message}`);
+  return data ?? [];
+}
 
 export async function getCachedArticle(worldNewsId: number): Promise<DbArticle | null> {
   const { data, error } = await supabase

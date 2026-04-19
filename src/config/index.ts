@@ -8,6 +8,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL'),
   SUPABASE_SERVICE_KEY: z.string().min(1, 'SUPABASE_SERVICE_KEY is required'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  INVITE_CODE: z.string().min(1, 'INVITE_CODE is required'),
 });
 
 const parsed = envSchema.safeParse(process.env);

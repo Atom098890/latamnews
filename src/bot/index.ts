@@ -2,7 +2,7 @@ import { Telegraf, session } from 'telegraf';
 import type { BotContext, SessionData } from '../types';
 import { config } from '../config';
 
-import { initSession, registerUser, rateLimiter, logger, onError } from './middleware';
+import { initSession, registerUser, rateLimiter, logger, filterMessages, checkAccess, onError } from './middleware';
 
 import { handleStart, handleToggleCountry, handleToggleCategory, handleConfirmCountries, handleConfirmCategories } from './handlers/start';
 import { handleNews, handleNewsNav } from './handlers/news';
@@ -19,6 +19,8 @@ export function createBot(): Telegraf<BotContext> {
   setBotRef(bot);
 
   // ─── Middleware stack ───────────────────────────────────────────────────────
+  bot.use(filterMessages);
+  bot.use(checkAccess);
   bot.use(logger);
   bot.use(session<SessionData, BotContext>({ defaultSession: () => ({ tempCountries: [], tempCategories: [], newsArticleIds: [], newsIndex: 0 }) }));
   bot.use(initSession);
