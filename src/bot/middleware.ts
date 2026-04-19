@@ -6,10 +6,11 @@ import { isDev } from '../config';
 // ─── Session initializer ─────────────────────────────────────────────────────
 
 export const initSession: MiddlewareFn<BotContext> = (ctx, next) => {
-  ctx.session ??= { tempCountries: [], tempCategories: [], newsOffset: 0 };
+  ctx.session ??= { tempCountries: [], tempCategories: [], newsArticleIds: [], newsIndex: 0 };
   ctx.session.tempCountries ??= [];
   ctx.session.tempCategories ??= [];
-  ctx.session.newsOffset ??= 0;
+  ctx.session.newsArticleIds ??= [];
+  ctx.session.newsIndex ??= 0;
   return next();
 };
 

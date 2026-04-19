@@ -68,15 +68,11 @@ export function settingsKeyboard(countries: string[], categories: string[]) {
 
 // ─── News navigation ─────────────────────────────────────────────────────────
 
-export function newsNavKeyboard(offset: number, hasMore: boolean) {
+export function newsNavKeyboard(index: number, total: number) {
   const buttons = [];
-  if (offset > 0) {
-    buttons.push(Markup.button.callback('← Назад', `news_page:${offset - 5}`));
-  }
-  if (hasMore) {
-    buttons.push(Markup.button.callback('Ещё →', `news_page:${offset + 5}`));
-  }
-  buttons.push(Markup.button.callback('🔄 Обновить', 'news_page:0'));
+  if (index > 0) buttons.push(Markup.button.callback('←', `news_nav:${index - 1}`));
+  buttons.push(Markup.button.callback(`${index + 1} / ${total}`, 'noop'));
+  if (index < total - 1) buttons.push(Markup.button.callback('→', `news_nav:${index + 1}`));
   return Markup.inlineKeyboard([buttons]);
 }
 

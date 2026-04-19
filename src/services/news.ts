@@ -35,7 +35,7 @@ function urlToId(url: string): number {
     hash ^= url.charCodeAt(i);
     hash = (hash * 16777619) >>> 0;
   }
-  return hash;
+  return hash | 0; // fit into signed 32-bit (PostgreSQL INTEGER range)
 }
 
 function normalize(article: GNewsArticle, country: string, category: string): RawNewsArticle {
@@ -92,10 +92,20 @@ export async function fetchNews(params: {
         const data = result.value.data;
         articles.push(...data.articles.map(a => normalize(a, countries[i]!, category)));
         total += data.totalArticles;
+      } else {
+        const err = result.reason as AxiosError;
+        console.error(`[news] ${countries[i]} failed ${err.response?.status}:`, err.response?.data ?? err.message);
       }
     }
 
-    return { articles: articles.slice(0, limit), total };
+    const seen = new Set<string>();
+    const unique = articles.filter(a => {
+      if (seen.has(a.url)) return false;
+      seen.add(a.url);
+      return true;
+    });
+
+    return { articles: unique.slice(0, limit), total };
   } catch (err) {
     if (err instanceof AxiosError) {
       const status = err.response?.status;

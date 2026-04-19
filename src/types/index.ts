@@ -70,12 +70,11 @@ export interface AdaptedArticle {
 // ─── Bot session ─────────────────────────────────────────────────────────────
 
 export interface SessionData {
-  // Onboarding / settings edit mode
   mode?: 'setup' | 'edit_countries' | 'edit_categories';
   tempCountries: string[];
   tempCategories: string[];
-  // News browsing
-  newsOffset: number;
+  newsArticleIds: number[];
+  newsIndex: number;
 }
 
 export interface BotContext extends Context {

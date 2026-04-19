@@ -5,7 +5,7 @@ import { config } from '../config';
 import { initSession, registerUser, rateLimiter, logger, onError } from './middleware';
 
 import { handleStart, handleToggleCountry, handleToggleCategory, handleConfirmCountries, handleConfirmCategories } from './handlers/start';
-import { handleNews, handleNewsPage } from './handlers/news';
+import { handleNews, handleNewsNav } from './handlers/news';
 import { handleSettings, handleSettingsEditCountries, handleSettingsEditCategories, handleConfirmCountriesEdit, handleConfirmCategoriesEdit } from './handlers/settings';
 import { handleSubscribe, handleSubscribeTime, handleSubscribeDisable, setBotRef } from './handlers/subscribe';
 import { handleHelp } from './handlers/help';
@@ -20,7 +20,7 @@ export function createBot(): Telegraf<BotContext> {
 
   // ─── Middleware stack ───────────────────────────────────────────────────────
   bot.use(logger);
-  bot.use(session<SessionData, BotContext>({ defaultSession: () => ({ tempCountries: [], tempCategories: [], newsOffset: 0 }) }));
+  bot.use(session<SessionData, BotContext>({ defaultSession: () => ({ tempCountries: [], tempCategories: [], newsArticleIds: [], newsIndex: 0 }) }));
   bot.use(initSession);
   bot.use(registerUser);
   bot.use(rateLimiter);
@@ -73,8 +73,9 @@ export function createBot(): Telegraf<BotContext> {
   bot.action('settings_edit_countries', handleSettingsEditCountries);
   bot.action('settings_edit_categories', handleSettingsEditCategories);
 
-  // ─── Callback: news pagination ──────────────────────────────────────────────
-  bot.action(/^news_page:\d+$/, handleNewsPage);
+  // ─── Callback: news navigation ──────────────────────────────────────────────
+  bot.action(/^news_nav:\d+$/, handleNewsNav);
+  bot.action('noop', ctx => ctx.answerCbQuery());
 
   // ─── Callback: subscriptions ────────────────────────────────────────────────
   bot.action(/^subscribe_time:\d+:\d+$/, handleSubscribeTime);
