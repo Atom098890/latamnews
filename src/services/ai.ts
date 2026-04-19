@@ -17,7 +17,6 @@ const SYSTEM_PROMPT = `Ты опытный журналист-междунаро
 {"title":"...","summary":"...","body":"..."}`;
 
 export async function adaptArticle(params: {
-  worldNewsId: number;
   title: string;
   text: string;
   countryCode: string;

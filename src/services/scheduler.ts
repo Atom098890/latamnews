@@ -4,11 +4,11 @@ import type { BotContext } from '../types';
 import { getActiveSubscriptions, getAllActiveUsers, deleteArticlesOlderThan, getCachedArticle, saveArticle } from './db';
 import { fetchNews } from './news';
 import { adaptArticle } from './ai';
-import { COUNTRIES, CATEGORIES, countryLabel, categoryLabel } from '../types';
+import { COUNTRIES, CATEGORIES, categoryLabel } from '../types';
 
 const activeTasks = new Map<number, cron.ScheduledTask>();
 
-const ARTICLE_TTL_DAYS = 30;
+const ARTICLE_TTL_DAYS = 10;
 
 export function startScheduler(bot: Telegraf<BotContext>): void {
   loadAndSchedule(bot);
@@ -51,7 +51,6 @@ async function prefetchAllArticles(): Promise<void> {
         if (await getCachedArticle(raw.id)) continue;
 
         const adapted = await adaptArticle({
-          worldNewsId: raw.id,
           title: raw.title,
           text: raw.text || raw.summary || raw.title,
           countryCode: country,
@@ -134,7 +133,6 @@ async function deliverNewsToUser(bot: Telegraf<BotContext>, telegramId: number):
 
       if (!article) {
         const adapted = await adaptArticle({
-          worldNewsId: raw.id,
           title: raw.title,
           text: raw.text || raw.summary || raw.title,
           countryCode,

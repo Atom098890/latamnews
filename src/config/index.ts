@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   BOT_TOKEN: z.string().min(1, 'BOT_TOKEN is required'),
-  GNEWS_API_KEY: z.string().min(1, 'GNEWS_API_KEY is required'),
   DEEPSEEK_API_KEY: z.string().min(1, 'DEEPSEEK_API_KEY is required'),
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL'),
   SUPABASE_SERVICE_KEY: z.string().min(1, 'SUPABASE_SERVICE_KEY is required'),

@@ -38,7 +38,7 @@ export interface DbSubscription {
   created_at: string;
 }
 
-// ─── World News API ──────────────────────────────────────────────────────────
+// ─── News ────────────────────────────────────────────────────────────────────
 
 export interface RawNewsArticle {
   id: number;
@@ -51,13 +51,6 @@ export interface RawNewsArticle {
   language: string;
   'source-country'?: string;
   category?: string;
-}
-
-export interface NewsApiResponse {
-  offset: number;
-  number: number;
-  available: number;
-  news: RawNewsArticle[];
 }
 
 // ─── AI ──────────────────────────────────────────────────────────────────────
@@ -85,16 +78,9 @@ export interface BotContext extends Context {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 export const COUNTRIES: Record<string, { name: string; flag: string }> = {
-  mx: { name: 'Мексика', flag: '🇲🇽' },
+  uy: { name: 'Уругвай', flag: '🇺🇾' },
   ar: { name: 'Аргентина', flag: '🇦🇷' },
   br: { name: 'Бразилия', flag: '🇧🇷' },
-  cl: { name: 'Чили', flag: '🇨🇱' },
-  co: { name: 'Колумбия', flag: '🇨🇴' },
-  pe: { name: 'Перу', flag: '🇵🇪' },
-  ve: { name: 'Венесуэла', flag: '🇻🇪' },
-  ec: { name: 'Эквадор', flag: '🇪🇨' },
-  uy: { name: 'Уругвай', flag: '🇺🇾' },
-  bo: { name: 'Боливия', flag: '🇧🇴' },
 };
 
 export const CATEGORIES: Record<string, { name: string; icon: string }> = {
