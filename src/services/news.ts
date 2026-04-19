@@ -1,41 +1,37 @@
-import Parser from 'rss-parser';
+import axios from 'axios';
+import { config } from '../config';
 import type { RawNewsArticle } from '../types';
 
-const parser = new Parser({
-  timeout: 15_000,
-  headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LatamNewsBot/1.0)' },
-});
+const BASE_URL = 'https://newsdata.io/api/1/latest';
+const REQUEST_TIMEOUT_MS = 15_000;
 
-// Category-specific RSS feeds; _default used when category has no dedicated feed
-const RSS_FEEDS: Record<string, Record<string, string | string[]>> = {
-  uy: {
-    _default: 'https://www.elpais.com.uy/rss/',
-    politics: 'https://www.elpais.com.uy/rss/temas/politica/',
-    economics: 'https://www.elpais.com.uy/rss/temas/economia/',
-    sports: 'https://www.elpais.com.uy/rss/temas/deportes/',
-    technology: 'https://www.elpais.com.uy/rss/temas/tecnologia/',
-    entertainment: 'https://www.elpais.com.uy/rss/temas/cultura/',
-    environment: 'https://www.elpais.com.uy/rss/',
-  },
-  ar: {
-    _default: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml',
-    politics: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/politica/?outputType=xml',
-    economics: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/economia/?outputType=xml',
-    sports: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/deportes/?outputType=xml',
-    technology: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/tecnologia/?outputType=xml',
-    entertainment: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/espectaculos/?outputType=xml',
-    environment: 'https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml',
-  },
-  br: {
-    _default: 'https://feeds.folha.uol.com.br/folha/brasil/rss091.xml',
-    politics: 'https://feeds.folha.uol.com.br/folha/poder/rss091.xml',
-    economics: 'https://feeds.folha.uol.com.br/folha/mercado/rss091.xml',
-    sports: 'https://feeds.folha.uol.com.br/folha/esporte/rss091.xml',
-    technology: 'https://feeds.folha.uol.com.br/folha/tec/rss091.xml',
-    entertainment: 'https://feeds.folha.uol.com.br/folha/ilustrada/rss091.xml',
-    environment: 'https://feeds.folha.uol.com.br/folha/ambiente/rss091.xml',
-  },
+const CATEGORY_MAP: Record<string, string> = {
+  politics: 'politics',
+  economics: 'business',
+  sports: 'sports',
+  technology: 'technology',
+  entertainment: 'entertainment',
+  environment: 'environment',
 };
+
+interface NewsDataArticle {
+  article_id: string;
+  title: string;
+  link: string;
+  description: string | null;
+  content: string | null;
+  pubDate: string | null;
+  image_url: string | null;
+  country: string[];
+  category: string[];
+  language: string;
+}
+
+interface NewsDataResponse {
+  status: string;
+  totalResults: number;
+  results: NewsDataArticle[];
+}
 
 function urlToId(url: string): number {
   let hash = 2166136261;
@@ -46,37 +42,39 @@ function urlToId(url: string): number {
   return hash | 0; // signed 32-bit for PostgreSQL INTEGER
 }
 
-function getFeedUrl(country: string, category: string): string | null {
-  const feeds = RSS_FEEDS[country];
-  if (!feeds) return null;
-  const url = feeds[category] ?? feeds['_default'];
-  if (Array.isArray(url)) return url[0] ?? null;
-  return url ?? null;
-}
-
-async function fetchFeed(country: string, category: string, limit: number): Promise<RawNewsArticle[]> {
-  const feedUrl = getFeedUrl(country, category);
-  if (!feedUrl) return [];
-
+async function fetchForCountry(country: string, category: string, size: number): Promise<RawNewsArticle[]> {
   try {
-    const feed = await parser.parseURL(feedUrl);
-    return feed.items.slice(0, limit).map(item => {
-      const url = item.link ?? item.guid ?? '';
-      return {
-        id: urlToId(url),
-        title: item.title ?? '',
-        text: item.content ?? item.contentSnippet ?? item.summary ?? '',
-        summary: item.contentSnippet ?? item.summary ?? '',
-        url,
-        image: item.enclosure?.url,
-        'publish-date': item.isoDate ?? item.pubDate,
+    const { data } = await axios.get<NewsDataResponse>(BASE_URL, {
+      params: {
+        apikey: config.NEWSDATA_API_KEY,
+        country,
+        category: CATEGORY_MAP[category] ?? 'politics',
         language: country === 'br' ? 'pt' : 'es',
+        size,
+      },
+      timeout: REQUEST_TIMEOUT_MS,
+    });
+
+    return data.results
+      .filter((a: NewsDataArticle) => a.link)
+      .map((a: NewsDataArticle) => ({
+        id: urlToId(a.link),
+        title: a.title,
+        text: a.content ?? a.description ?? '',
+        summary: a.description ?? '',
+        url: a.link,
+        image: a.image_url ?? undefined,
+        'publish-date': a.pubDate ?? undefined,
+        language: a.language,
         'source-country': country,
         category,
-      };
-    }).filter(a => a.url);
+      }));
   } catch (err) {
-    console.error(`[news] RSS fetch failed for ${country}/${category}:`, err instanceof Error ? err.message : err);
+    if (axios.isAxiosError(err)) {
+      console.error(`[news] NewsData fetch failed for ${country}/${category}: ${err.response?.status} ${JSON.stringify(err.response?.data)}`);
+    } else {
+      console.error(`[news] NewsData fetch failed for ${country}/${category}:`, err instanceof Error ? err.message : err);
+    }
     return [];
   }
 }
@@ -92,7 +90,7 @@ export async function fetchNews(params: {
   const perCountry = Math.max(3, Math.ceil(limit / countries.length));
 
   const results = await Promise.allSettled(
-    countries.map(country => fetchFeed(country, category, perCountry))
+    countries.map(country => fetchForCountry(country, category, perCountry))
   );
 
   const articles: RawNewsArticle[] = [];
