@@ -1,10 +1,11 @@
 import cron from 'node-cron';
 import type { Telegraf } from 'telegraf';
 import type { BotContext } from '../types';
-import { getActiveSubscriptions, getAllActiveUsers, deleteArticlesOlderThan, getCachedArticle, saveArticle } from './db';
+import { getActiveSubscriptions, getAllActiveUsers, deleteArticlesOlderThan, getCachedArticle, saveArticle, getRecentArticles } from './db';
 import { fetchNews } from './news';
 import { adaptArticle } from './ai';
-import { COUNTRIES, CATEGORIES, categoryLabel } from '../types';
+import { newsNavKeyboard } from '../bot/keyboards';
+import { formatArticle } from '../bot/handlers/news';
 
 const activeTasks = new Map<number, cron.ScheduledTask>();
 
@@ -109,72 +110,20 @@ async function deliverNewsToUser(bot: Telegraf<BotContext>, telegramId: number):
   const user = users.find((u) => u.telegram_id === telegramId);
   if (!user || user.country_codes.length === 0) return;
 
-  const { articles } = await fetchNews({
-    countries: user.country_codes,
-    categories: user.categories,
-    limit: 3,
-  });
+  const articles = await getRecentArticles(user.country_codes, user.categories, 5);
 
   if (articles.length === 0) {
     await bot.telegram.sendMessage(telegramId, '📭 Свежих новостей пока нет. Проверьте позже.');
     return;
   }
 
-  await bot.telegram.sendMessage(telegramId, '🌅 *Ваши утренние новости Латинской Америки:*', {
-    parse_mode: 'Markdown',
+  const first = articles[0]!;
+
+  await bot.telegram.sendMessage(telegramId, formatArticle(first), {
+    parse_mode: 'MarkdownV2',
+    link_preview_options: { is_disabled: true },
+    ...newsNavKeyboard(0, articles.length),
   });
-
-  for (const raw of articles.slice(0, 3)) {
-    try {
-      const countryCode = raw['source-country'] ?? user.country_codes[0] ?? 'mx';
-      const category = raw.category ?? user.categories[0] ?? 'politics';
-
-      let article = await getCachedArticle(raw.id);
-
-      if (!article) {
-        const adapted = await adaptArticle({
-          title: raw.title,
-          text: raw.text || raw.summary || raw.title,
-          countryCode,
-          category,
-        });
-
-        article = await saveArticle({
-          world_news_id: raw.id,
-          adapted_title: adapted.title,
-          adapted_summary: adapted.summary,
-          adapted_body: adapted.body,
-          country_code: countryCode,
-          category,
-          source_url: raw.url,
-          image_url: raw.image ?? null,
-          published_at: raw['publish-date'] ?? null,
-        });
-      }
-
-      const country = COUNTRIES[article.country_code];
-      const cat = CATEGORIES[article.category];
-      const flag = country?.flag ?? '';
-      const catIcon = cat?.icon ?? '';
-
-      const text = [
-        `${flag} ${catIcon} *${categoryLabel(article.category)}*`,
-        '',
-        `*${article.adapted_title}*`,
-        '',
-        article.adapted_summary,
-        '',
-        `[Читать источник →](${article.source_url})`,
-      ].join('\n');
-
-      await bot.telegram.sendMessage(telegramId, text, {
-        parse_mode: 'Markdown',
-        link_preview_options: { is_disabled: true },
-      });
-    } catch (err) {
-      console.error('[scheduler] Article delivery error:', err);
-    }
-  }
 }
 
 export function reloadScheduler(bot: Telegraf<BotContext>): void {

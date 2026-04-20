@@ -58,7 +58,16 @@ export async function handleNewsNav(ctx: BotContext): Promise<void> {
 
   const indexStr = ctx.callbackQuery.data.split(':')[1];
   const index = parseInt(indexStr ?? '0', 10);
-  const articleIds = ctx.session.newsArticleIds ?? [];
+
+  // Restore session from DB if empty (e.g. after scheduled delivery or bot restart)
+  if (ctx.session.newsArticleIds.length === 0) {
+    const user = await getUser(ctx.from!.id);
+    if (!user || user.country_codes.length === 0) { await ctx.answerCbQuery(); return; }
+    const articles = await getRecentArticles(user.country_codes, user.categories, PAGE_SIZE);
+    ctx.session.newsArticleIds = articles.map(a => a.world_news_id);
+  }
+
+  const articleIds = ctx.session.newsArticleIds;
 
   if (index < 0 || index >= articleIds.length) {
     await ctx.answerCbQuery();
@@ -81,7 +90,7 @@ export async function handleNewsNav(ctx: BotContext): Promise<void> {
   });
 }
 
-function formatArticle(article: DbArticle): string {
+export function formatArticle(article: DbArticle): string {
   const country = COUNTRIES[article.country_code];
   const cat = CATEGORIES[article.category];
   const flag = country?.flag ?? '';
